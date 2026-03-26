@@ -174,6 +174,9 @@ This is a known Xcode 26 issue with stricter C++ const-correctness in React Nati
 - Ensure `google-services.json` is placed in `android/app/` **before** running `npx expo prebuild --clean`
 - Verify your FCM server key is uploaded to the [Telnyx Portal](https://portal.telnyx.com)
 - Check that `AppFirebaseMessagingService` appears in `AndroidManifest.xml` (the config plugin generates this automatically)
+### Demo 
+
+https://github.com/user-attachments/assets/2a9272dd-0bf6-43d4-b14a-8404e46f788f
 
 ### General: Changes not taking effect
 
