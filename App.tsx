@@ -328,7 +328,7 @@ function VoiceApp() {
                 placeholder="Phone number or SIP URI"
                 value={destination}
                 onChangeText={setDestination}
-                keyboardType="phone-pad"
+                keyboardType="default"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
