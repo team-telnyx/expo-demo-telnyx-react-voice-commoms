@@ -144,6 +144,77 @@ Set in `app.json`:
 "newArchEnabled": false
 ```
 
+## Reusing this setup in an existing app
+
+If you're already using `@telnyx/react-voice-commons-sdk` in another Expo app and running into native crashes (e.g. `NSInternalInconsistencyException` from PushKit/CallKit), the fastest fix is to mirror the native wiring from this project. iOS requires that every VoIP push is reported to CallKit via `reportNewIncomingCall(...)` in the **same runloop**, before the push `completion()` handler returns — this plugin guarantees that by delegating to `TelnyxVoipPushHandler.shared`.
+
+### 1. Copy the config plugin
+
+Copy [`plugins/withTelnyxVoice.js`](plugins/withTelnyxVoice.js) into your project's `plugins/` directory, then register it in your `app.json`:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      "@config-plugins/react-native-webrtc",
+      "./plugins/withTelnyxVoice"
+    ]
+  }
+}
+```
+
+When you run `npx expo prebuild --clean`, the plugin regenerates `ios/<YourApp>/AppDelegate.swift` with:
+
+- `import PushKit` and `import TelnyxVoiceCommons`
+- `PKPushRegistryDelegate` conformance on `AppDelegate`
+- `TelnyxVoipPushHandler.initializeVoipRegistration()` called in `didFinishLaunchingWithOptions`
+- The two `pushRegistry(...)` delegate methods, both delegating to `TelnyxVoipPushHandler.shared` (token updates and incoming pushes)
+
+It also handles the Android side (MainActivity/MainApplication/Manifest/FCM service) and applies the Xcode 26 `jsi.h` const-correctness Podfile fix.
+
+> **Note:** The plugin's string replacements target a stock Expo-generated `AppDelegate.swift`. If you have a customized AppDelegate, either run a clean prebuild or apply the same changes manually using the plugin as a reference.
+
+### 2. Copy the iOS section of `app.json`
+
+Your `app.json` must include these iOS settings (see [`app.json`](app.json)):
+
+```json
+{
+  "expo": {
+    "newArchEnabled": false,
+    "ios": {
+      "bundleIdentifier": "com.yourcompany.yourapp",
+      "bitcode": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["voip", "audio", "remote-notification"],
+        "NSMicrophoneUsageDescription": "This app needs microphone access to make voice calls"
+      }
+    }
+  }
+}
+```
+
+Why each matters:
+
+- **`newArchEnabled: false`** — The SDK's PushKit/CallKit lifecycle coordination was built against the bridge-based architecture. Fabric/TurboModules can break the native-to-JS bridge lookup used to emit CallKit events.
+- **`UIBackgroundModes: ["voip", "audio", "remote-notification"]`** — Without `voip`, iOS won't deliver PushKit pushes at all. Without `audio`, audio sessions can't stay active in the background during a call.
+- **`NSMicrophoneUsageDescription`** — Required or iOS terminates the app on first mic access.
+- **`aps-environment` entitlement** — Added automatically by the plugin; required for PushKit VoIP token registration.
+
+After copying both, run:
+
+```bash
+rm -rf ios android
+npx expo prebuild --clean
+npx expo run:ios
+```
+
+and verify that your generated `ios/<YourApp>/AppDelegate.swift` contains `TelnyxVoipPushHandler.shared.handleVoipPush(...)` inside `pushRegistry(_:didReceiveIncomingPushWith:for:completion:)`. If it doesn't, the plugin didn't match your AppDelegate template — apply the changes manually.
+
+### 3. Confirm your push payload
+
+`TelnyxVoipPushHandler.handleVoipPush` requires the push payload to contain a `call_id` that parses as a UUID (either at `metadata.call_id` or top-level `call_id`). If it's missing or malformed, the handler returns without reporting to CallKit — which itself triggers `NSInternalInconsistencyException`. Verify the Telnyx push payload your backend is sending contains this field.
+
 ## Troubleshooting
 
 ### iOS: Empty VoIP push token / app stays disconnected
