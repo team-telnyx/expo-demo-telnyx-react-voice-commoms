@@ -146,8 +146,6 @@ Set in `app.json`:
 
 ## Reusing this setup in an existing app
 
-If you're already using `@telnyx/react-voice-commons-sdk` in another Expo app and running into native crashes (e.g. `NSInternalInconsistencyException` from PushKit/CallKit), the fastest fix is to mirror the native wiring from this project. iOS requires that every VoIP push is reported to CallKit via `reportNewIncomingCall(...)` in the **same runloop**, before the push `completion()` handler returns — this plugin guarantees that by delegating to `TelnyxVoipPushHandler.shared`.
-
 ### 1. Copy the config plugin
 
 Copy [`plugins/withTelnyxVoice.js`](plugins/withTelnyxVoice.js) into your project's `plugins/` directory, then register it in your `app.json`:
